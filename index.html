@@ -465,6 +465,12 @@
                 this.frecuencia = Math.random() * 0.05 + 0.02;
                 this.fase = Math.random() * Math.PI * 2;
                 this.yInicial = this.y;
+                
+                // Sistema de disparo
+                this.tiempoUltimoDisparo = Date.now();
+                this.intervaloDisparo = 2000 + Math.random() * 2000; // Entre 2 y 4 segundos
+                this.probabilidadDisparo = 0.005 + (nivel * 0.002); // Aumenta con el nivel
+                this.velocidadBala = 5 + nivel; // Velocidad de las balas enemigas
             }
 
             actualizar() {
@@ -484,6 +490,29 @@
                 if (this.x < -this.ancho) {
                     this.activo = false;
                 }
+            }
+            
+            // Método para intentar disparar
+            intentarDisparar() {
+                // Solo disparar si el enemigo está visible en la pantalla
+                if (this.x > this.canvas.width || this.x < 0) {
+                    return null;
+                }
+                
+                const tiempoActual = Date.now();
+                
+                // Usar probabilidad por frame O temporizador
+                const tiempoTranscurrido = tiempoActual - this.tiempoUltimoDisparo;
+                const debeDisparar = (tiempoTranscurrido >= this.intervaloDisparo) || 
+                                     (Math.random() < this.probabilidadDisparo && tiempoTranscurrido > 500);
+                
+                if (debeDisparar) {
+                    this.tiempoUltimoDisparo = tiempoActual;
+                    // Crear bala enemiga (esJugador = false, va hacia la izquierda, color rojo)
+                    return new Bala(this.x, this.y + this.alto / 2 - 2, this.velocidadBala, false);
+                }
+                
+                return null;
             }
 
             dibujar(ctx) {
@@ -526,6 +555,218 @@
                     ancho: this.ancho,
                     alto: this.alto
                 };
+            }
+        }
+
+        // ==========================================
+        // CLASE: Terrain (Estilo Gradius - Generación Procedural)
+        // ==========================================
+        class Terrain {
+            constructor(canvas) {
+                this.canvas = canvas;
+                this.segmentWidth = 50; // Ancho de cada segmento del terreno
+                this.scrollSpeed = 2; // Velocidad de scroll
+                this.offsetX = 0; // Desplazamiento horizontal acumulado
+                
+                // Colores retro
+                this.rockColor = '#8B4513'; // Marrón arcilla
+                this.mossColor = '#228B22'; // Verde musgo
+                
+                // Configuración del terreno superior e inferior
+                this.topTerrainHeight = 60; // Altura máxima del terreno superior
+                this.bottomTerrainHeight = 60; // Altura máxima del terreno inferior
+                
+                // Arrays de puntos para el terreno (generados proceduralmente)
+                this.topPoints = [];
+                this.bottomPoints = [];
+                
+                // Generar puntos iniciales
+                this.initializeTerrain();
+            }
+            
+            initializeTerrain() {
+                // Calcular cuántos segmentos necesitamos para cubrir la pantalla + buffer
+                const numSegments = Math.ceil(this.canvas.width / this.segmentWidth) + 3;
+                
+                // Generar puntos iniciales para el terreno superior
+                for (let i = 0; i < numSegments; i++) {
+                    this.topPoints.push({
+                        x: i * this.segmentWidth,
+                        height: this.generateRandomHeight(this.topTerrainHeight)
+                    });
+                }
+                
+                // Generar puntos iniciales para el terreno inferior
+                for (let i = 0; i < numSegments; i++) {
+                    this.bottomPoints.push({
+                        x: i * this.segmentWidth,
+                        height: this.generateRandomHeight(this.bottomTerrainHeight)
+                    });
+                }
+            }
+            
+            generateRandomHeight(maxHeight) {
+                // Generar altura irregular para el terreno
+                return Math.random() * maxHeight * 0.6 + maxHeight * 0.2;
+            }
+            
+            actualizar() {
+                // Desplazar el terreno hacia la izquierda
+                this.offsetX += this.scrollSpeed;
+                
+                // Actualizar posiciones de los puntos superiores
+                for (let point of this.topPoints) {
+                    point.x -= this.scrollSpeed;
+                }
+                
+                // Actualizar posiciones de los puntos inferiores
+                for (let point of this.bottomPoints) {
+                    point.x -= this.scrollSpeed;
+                }
+                
+                // Eliminar puntos que salen por la izquierda y generar nuevos por la derecha
+                // Terreno superior
+                if (this.topPoints.length > 0 && this.topPoints[0].x < -this.segmentWidth) {
+                    this.topPoints.shift();
+                    const lastPoint = this.topPoints[this.topPoints.length - 1];
+                    this.topPoints.push({
+                        x: lastPoint.x + this.segmentWidth,
+                        height: this.generateRandomHeight(this.topTerrainHeight)
+                    });
+                }
+                
+                // Terreno inferior
+                if (this.bottomPoints.length > 0 && this.bottomPoints[0].x < -this.segmentWidth) {
+                    this.bottomPoints.shift();
+                    const lastPoint = this.bottomPoints[this.bottomPoints.length - 1];
+                    this.bottomPoints.push({
+                        x: lastPoint.x + this.segmentWidth,
+                        height: this.generateRandomHeight(this.bottomTerrainHeight)
+                    });
+                }
+            }
+            
+            dibujar(ctx) {
+                // Dibujar terreno superior (techo)
+                this.dibujarTerrenoSuperior(ctx);
+                
+                // Dibujar terreno inferior (suelo)
+                this.dibujarTerrenoInferior(ctx);
+            }
+            
+            dibujarTerrenoSuperior(ctx) {
+                if (this.topPoints.length < 2) return;
+                
+                ctx.save();
+                
+                // Dibujar la roca (relleno marrón)
+                ctx.fillStyle = this.rockColor;
+                ctx.beginPath();
+                ctx.moveTo(this.topPoints[0].x, 0);
+                
+                for (let point of this.topPoints) {
+                    ctx.lineTo(point.x, point.height);
+                }
+                
+                // Cerrar el polígono
+                ctx.lineTo(this.topPoints[this.topPoints.length - 1].x, 0);
+                ctx.closePath();
+                ctx.fill();
+                
+                // Dibujar el borde verde (musgo/césped)
+                ctx.strokeStyle = this.mossColor;
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(this.topPoints[0].x, this.topPoints[0].height);
+                
+                for (let i = 1; i < this.topPoints.length; i++) {
+                    ctx.lineTo(this.topPoints[i].x, this.topPoints[i].height);
+                }
+                ctx.stroke();
+                
+                ctx.restore();
+            }
+            
+            dibujarTerrenoInferior(ctx) {
+                if (this.bottomPoints.length < 2) return;
+                
+                ctx.save();
+                
+                // Dibujar la roca (relleno marrón)
+                ctx.fillStyle = this.rockColor;
+                ctx.beginPath();
+                ctx.moveTo(this.bottomPoints[0].x, this.canvas.height);
+                
+                for (let point of this.bottomPoints) {
+                    ctx.lineTo(point.x, this.canvas.height - point.height);
+                }
+                
+                // Cerrar el polígono
+                ctx.lineTo(this.bottomPoints[this.bottomPoints.length - 1].x, this.canvas.height);
+                ctx.closePath();
+                ctx.fill();
+                
+                // Dibujar el borde verde (musgo/césped)
+                ctx.strokeStyle = this.mossColor;
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(this.bottomPoints[0].x, this.canvas.height - this.bottomPoints[0].height);
+                
+                for (let i = 1; i < this.bottomPoints.length; i++) {
+                    ctx.lineTo(this.bottomPoints[i].x, this.canvas.height - this.bottomPoints[i].height);
+                }
+                ctx.stroke();
+                
+                ctx.restore();
+            }
+            
+            // Detección de colisión con el terreno
+            detectarColision(objeto) {
+                const limites = objeto.obtenerLimites();
+                const x = limites.x;
+                const y = limites.y;
+                const ancho = limites.ancho;
+                const alto = limites.alto;
+                
+                // Verificar colisión con el terreno superior
+                for (let i = 0; i < this.topPoints.length - 1; i++) {
+                    const p1 = this.topPoints[i];
+                    const p2 = this.topPoints[i + 1];
+                    
+                    // Verificar si el objeto está en el rango horizontal del segmento
+                    if (x + ancho >= p1.x && x <= p2.x) {
+                        // Interpolar la altura del terreno en la posición del objeto
+                        const dx = p2.x - p1.x;
+                        const t = dx !== 0 ? (x + ancho / 2 - p1.x) / dx : 0;
+                        const terrainHeight = p1.height + (p2.height - p1.height) * Math.max(0, Math.min(1, t));
+                        
+                        // Colisión si el objeto está por encima del terreno superior
+                        if (y < terrainHeight) {
+                            return true;
+                        }
+                    }
+                }
+                
+                // Verificar colisión con el terreno inferior
+                for (let i = 0; i < this.bottomPoints.length - 1; i++) {
+                    const p1 = this.bottomPoints[i];
+                    const p2 = this.bottomPoints[i + 1];
+                    
+                    // Verificar si el objeto está en el rango horizontal del segmento
+                    if (x + ancho >= p1.x && x <= p2.x) {
+                        // Interpolar la altura del terreno en la posición del objeto
+                        const dx = p2.x - p1.x;
+                        const t = dx !== 0 ? (x + ancho / 2 - p1.x) / dx : 0;
+                        const terrainHeight = p1.height + (p2.height - p1.height) * Math.max(0, Math.min(1, t));
+                        
+                        // Colisión si el objeto está por debajo del terreno inferior
+                        if (y + alto > this.canvas.height - terrainHeight) {
+                            return true;
+                        }
+                    }
+                }
+                
+                return false;
             }
         }
 
@@ -582,6 +823,7 @@
                 this.enemigos = [];
                 this.balas = [];
                 this.estrellas = [];
+                this.terrain = null; // Terreno estilo Gradius
                 this.puntuacion = 0;
                 this.nivel = 1;
                 this.nivelMaximo = 5;
@@ -686,6 +928,7 @@
                 this.gameOverScreen.style.display = 'none';
                 
                 this.jugador = new Jugador(this.canvas);
+                this.terrain = new Terrain(this.canvas); // Inicializar terreno
                 this.enemigos = [];
                 this.balas = [];
                 this.puntuacion = 0;
@@ -750,6 +993,22 @@
                     }
                 }
 
+                // Balas enemigas vs Jugador
+                for (let i = this.balas.length - 1; i >= 0; i--) {
+                    const bala = this.balas[i];
+                    if (bala.esJugador || !bala.activa) continue;
+
+                    if (this.detectarColision(bala, this.jugador)) {
+                        bala.activa = false;
+                        if (this.jugador.recibirDano()) {
+                            if (this.jugador.vidas <= 0) {
+                                this.gameOver();
+                                return;
+                            }
+                        }
+                    }
+                }
+
                 // Enemigos vs Jugador
                 for (const enemigo of this.enemigos) {
                     if (!enemigo.activo) continue;
@@ -761,6 +1020,16 @@
                                 this.gameOver();
                                 return;
                             }
+                        }
+                    }
+                }
+                
+                // Colisión con el terreno (jugador)
+                if (this.terrain && this.terrain.detectarColision(this.jugador)) {
+                    if (this.jugador.recibirDano()) {
+                        if (this.jugador.vidas <= 0) {
+                            this.gameOver();
+                            return;
                         }
                     }
                 }
@@ -820,13 +1089,18 @@
 
                 if (!this.enJuego) return;
 
+                // Actualizar terreno (scroll infinito)
+                if (this.terrain) {
+                    this.terrain.actualizar();
+                }
+
                 // Spawn de enemigos
                 if (tiempoActual - this.tiempoSpawnEnemigo >= this.obtenerIntervaloSpawn()) {
                     this.spawnEnemigo();
                     this.tiempoSpawnEnemigo = tiempoActual;
                 }
 
-                // Disparar
+                // Disparar (jugador)
                 if (this.disparando) {
                     const bala = this.jugador.disparar(tiempoActual);
                     if (bala) {
@@ -837,9 +1111,15 @@
                 // Actualizar jugador
                 this.jugador.actualizar(deltaTime);
 
-                // Actualizar enemigos
+                // Actualizar enemigos y procesar sus disparos
                 for (const enemigo of this.enemigos) {
                     enemigo.actualizar();
+                    
+                    // Intentar que el enemigo dispare
+                    const balaEnemiga = enemigo.intentarDisparar();
+                    if (balaEnemiga) {
+                        this.balas.push(balaEnemiga);
+                    }
                 }
 
                 // Actualizar balas
@@ -884,6 +1164,11 @@
                 // Dibujar estrellas (encima del fondo para efecto de profundidad)
                 for (const estrella of this.estrellas) {
                     estrella.dibujar(this.ctx);
+                }
+
+                // Dibujar terreno (detrás del jugador y los enemigos)
+                if (this.terrain) {
+                    this.terrain.dibujar(this.ctx);
                 }
 
                 if (!this.enJuego && !this.jugador) return;
