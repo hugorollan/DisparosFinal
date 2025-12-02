@@ -223,7 +223,9 @@
                 }
 
                 // Desactivar si sale de la pantalla
-                if (this.x > 850 || this.x < -20) {
+                // Canvas width is 800, so use 800 + 50 margin
+                const canvasWidth = 800;
+                if (this.x > canvasWidth + 50 || this.x < -20) {
                     this.activa = false;
                 }
             }
@@ -627,7 +629,7 @@
                 this.ultimoTiempo = performance.now();
                 this.tiempoSpawnEnemigo = this.ultimoTiempo;
                 
-                this.gameLoop(this.ultimoTiempo);
+                // Game loop is already running from DOMContentLoaded, no need to start again
             }
 
             reiniciarJuego() {
@@ -849,18 +851,8 @@
                 this.actualizar(tiempoActual);
                 this.dibujar();
 
-                if (this.enJuego || this.startScreen.style.display !== 'none') {
-                    requestAnimationFrame((t) => this.gameLoop(t));
-                } else {
-                    // Seguir animando el fondo incluso en game over
-                    requestAnimationFrame((t) => {
-                        this.actualizar(t);
-                        this.dibujar();
-                        if (!this.enJuego) {
-                            requestAnimationFrame((t2) => this.gameLoop(t2));
-                        }
-                    });
-                }
+                // Always continue the game loop - it handles both active game and background animation
+                requestAnimationFrame((t) => this.gameLoop(t));
             }
         }
 
