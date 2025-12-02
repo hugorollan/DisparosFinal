@@ -202,6 +202,59 @@
 
     <script>
         // ==========================================
+        // SISTEMA DE CARGA DE IMÁGENES
+        // ==========================================
+        const ImageLoader = {
+            images: {},
+            loaded: false,
+            
+            // URLs de las imágenes
+            URLS: {
+                player: 'https://i.redd.it/yct20hubfk061.png',
+                enemy: 'https://png.pngtree.com/png-vector/20250922/ourmid/pngtree-neon-retro-spaceship-pixel-art-with-vibrant-exhaust-png-image_17538670.webp',
+                background: 'https://images.unsplash.com/photo-1506318137071-a8bcbf67cc77?q=80&w=2070&auto=format&fit=crop'
+            },
+            
+            load() {
+                return new Promise((resolve) => {
+                    const imageKeys = Object.keys(this.URLS);
+                    let loadedCount = 0;
+                    let failedCount = 0;
+                    
+                    imageKeys.forEach((key) => {
+                        const img = new Image();
+                        img.crossOrigin = 'anonymous';
+                        
+                        img.onload = () => {
+                            this.images[key] = img;
+                            loadedCount++;
+                            if (loadedCount + failedCount === imageKeys.length) {
+                                this.loaded = true;
+                                resolve(this.images);
+                            }
+                        };
+                        
+                        img.onerror = () => {
+                            console.warn(`Failed to load image: ${key}`);
+                            this.images[key] = null;
+                            failedCount++;
+                            if (loadedCount + failedCount === imageKeys.length) {
+                                this.loaded = true;
+                                resolve(this.images);
+                            }
+                        };
+                        
+                        img.src = this.URLS[key];
+                    });
+                });
+            },
+            
+            get(key) {
+                return this.images[key] || null;
+            }
+        };
+
+        // ==========================================
         // CLASE: Bala (Bullet)
         // ==========================================
         class Bala {
@@ -263,8 +316,9 @@
         class Jugador {
             constructor(canvas) {
                 this.canvas = canvas;
-                this.ancho = 50;
-                this.alto = 30;
+                // Ajustar tamaño para coincidir con el sprite
+                this.ancho = 60;
+                this.alto = 40;
                 this.x = 50;
                 this.y = canvas.height / 2 - this.alto / 2;
                 this.velocidad = 5;
@@ -315,29 +369,33 @@
 
                 ctx.save();
                 
-                // Cuerpo de la nave
-                ctx.fillStyle = '#00ff88';
-                ctx.shadowColor = '#00ff88';
-                ctx.shadowBlur = 15;
-                
-                // Forma de nave espacial
-                ctx.beginPath();
-                ctx.moveTo(this.x + this.ancho, this.y + this.alto / 2); // Punta
-                ctx.lineTo(this.x, this.y); // Arriba izquierda
-                ctx.lineTo(this.x + 10, this.y + this.alto / 2); // Centro
-                ctx.lineTo(this.x, this.y + this.alto); // Abajo izquierda
-                ctx.closePath();
-                ctx.fill();
+                const playerImg = ImageLoader.get('player');
+                if (playerImg) {
+                    // Dibujar el sprite del jugador
+                    ctx.drawImage(playerImg, this.x, this.y, this.ancho, this.alto);
+                } else {
+                    // Fallback: dibujar forma geométrica si la imagen no cargó
+                    ctx.fillStyle = '#00ff88';
+                    ctx.shadowColor = '#00ff88';
+                    ctx.shadowBlur = 15;
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(this.x + this.ancho, this.y + this.alto / 2);
+                    ctx.lineTo(this.x, this.y);
+                    ctx.lineTo(this.x + 10, this.y + this.alto / 2);
+                    ctx.lineTo(this.x, this.y + this.alto);
+                    ctx.closePath();
+                    ctx.fill();
 
-                // Motor
-                ctx.fillStyle = '#ff6600';
-                ctx.shadowColor = '#ff6600';
-                ctx.beginPath();
-                ctx.moveTo(this.x + 5, this.y + 8);
-                ctx.lineTo(this.x - 10, this.y + this.alto / 2);
-                ctx.lineTo(this.x + 5, this.y + this.alto - 8);
-                ctx.closePath();
-                ctx.fill();
+                    ctx.fillStyle = '#ff6600';
+                    ctx.shadowColor = '#ff6600';
+                    ctx.beginPath();
+                    ctx.moveTo(this.x + 5, this.y + 8);
+                    ctx.lineTo(this.x - 10, this.y + this.alto / 2);
+                    ctx.lineTo(this.x + 5, this.y + this.alto - 8);
+                    ctx.closePath();
+                    ctx.fill();
+                }
 
                 ctx.restore();
             }
@@ -389,8 +447,9 @@
         class Enemigo {
             constructor(canvas, nivel) {
                 this.canvas = canvas;
-                this.ancho = 40;
-                this.alto = 25;
+                // Ajustar tamaño para coincidir con el sprite
+                this.ancho = 50;
+                this.alto = 35;
                 this.x = canvas.width + this.ancho;
                 this.y = Math.random() * (canvas.height - this.alto - 40) + 20;
                 
@@ -430,26 +489,32 @@
             dibujar(ctx) {
                 ctx.save();
                 
-                // Cuerpo del enemigo
-                ctx.fillStyle = '#ff3366';
-                ctx.shadowColor = '#ff3366';
-                ctx.shadowBlur = 10;
-                
-                // Forma de nave enemiga
-                ctx.beginPath();
-                ctx.moveTo(this.x, this.y + this.alto / 2); // Punta izquierda
-                ctx.lineTo(this.x + this.ancho, this.y); // Arriba derecha
-                ctx.lineTo(this.x + this.ancho - 10, this.y + this.alto / 2); // Centro
-                ctx.lineTo(this.x + this.ancho, this.y + this.alto); // Abajo derecha
-                ctx.closePath();
-                ctx.fill();
+                const enemyImg = ImageLoader.get('enemy');
+                if (enemyImg) {
+                    // Dibujar el sprite del enemigo (volteado horizontalmente para que mire a la izquierda)
+                    ctx.translate(this.x + this.ancho, this.y);
+                    ctx.scale(-1, 1);
+                    ctx.drawImage(enemyImg, 0, 0, this.ancho, this.alto);
+                } else {
+                    // Fallback: dibujar forma geométrica si la imagen no cargó
+                    ctx.fillStyle = '#ff3366';
+                    ctx.shadowColor = '#ff3366';
+                    ctx.shadowBlur = 10;
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(this.x, this.y + this.alto / 2);
+                    ctx.lineTo(this.x + this.ancho, this.y);
+                    ctx.lineTo(this.x + this.ancho - 10, this.y + this.alto / 2);
+                    ctx.lineTo(this.x + this.ancho, this.y + this.alto);
+                    ctx.closePath();
+                    ctx.fill();
 
-                // Ojo/cabina
-                ctx.fillStyle = '#ffff00';
-                ctx.shadowColor = '#ffff00';
-                ctx.beginPath();
-                ctx.arc(this.x + 15, this.y + this.alto / 2, 5, 0, Math.PI * 2);
-                ctx.fill();
+                    ctx.fillStyle = '#ffff00';
+                    ctx.shadowColor = '#ffff00';
+                    ctx.beginPath();
+                    ctx.arc(this.x + 15, this.y + this.alto / 2, 5, 0, Math.PI * 2);
+                    ctx.fill();
+                }
 
                 ctx.restore();
             }
@@ -522,6 +587,10 @@
                 this.nivelMaximo = 5;
                 this.enJuego = false;
                 this.pausado = false;
+                
+                // Fondo parallax
+                this.fondoX = 0;
+                this.fondoVelocidad = 1; // Velocidad del scrolling
                 
                 // Temporizadores
                 this.ultimoTiempo = 0;
@@ -790,11 +859,29 @@
             }
 
             dibujar() {
-                // Limpiar canvas
-                this.ctx.fillStyle = '#000011';
-                this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+                // Dibujar fondo parallax
+                const bgImg = ImageLoader.get('background');
+                if (bgImg) {
+                    // Calcular posiciones para scrolling infinito
+                    const imgWidth = this.canvas.width;
+                    const imgHeight = this.canvas.height;
+                    
+                    // Dibujar dos copias de la imagen para efecto de scrolling continuo
+                    this.ctx.drawImage(bgImg, this.fondoX, 0, imgWidth, imgHeight);
+                    this.ctx.drawImage(bgImg, this.fondoX + imgWidth, 0, imgWidth, imgHeight);
+                    
+                    // Actualizar posición del fondo
+                    this.fondoX -= this.fondoVelocidad;
+                    if (this.fondoX <= -imgWidth) {
+                        this.fondoX = 0;
+                    }
+                } else {
+                    // Fallback: fondo oscuro si la imagen no cargó
+                    this.ctx.fillStyle = '#000011';
+                    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+                }
 
-                // Dibujar estrellas
+                // Dibujar estrellas (encima del fondo para efecto de profundidad)
                 for (const estrella of this.estrellas) {
                     estrella.dibujar(this.ctx);
                 }
@@ -859,7 +946,19 @@
         // ==========================================
         // INICIALIZACIÓN
         // ==========================================
-        document.addEventListener('DOMContentLoaded', () => {
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Mostrar mensaje de carga
+            const startBtn = document.getElementById('startBtn');
+            startBtn.textContent = 'CARGANDO...';
+            startBtn.disabled = true;
+            
+            // Cargar imágenes antes de permitir iniciar el juego
+            await ImageLoader.load();
+            
+            // Habilitar botón de inicio
+            startBtn.textContent = 'INICIAR JUEGO';
+            startBtn.disabled = false;
+            
             const game = new GameManager();
             // Iniciar animación del fondo antes de empezar
             game.gameLoop(performance.now());
