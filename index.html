@@ -1,0 +1,869 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Disparos Espaciales - Estilo Gradius</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #0a0a1a 0%, #1a1a3a 100%);
+            font-family: 'Courier New', Courier, monospace;
+            overflow: hidden;
+        }
+
+        #gameContainer {
+            position: relative;
+            border: 3px solid #00ffff;
+            box-shadow: 0 0 20px #00ffff, inset 0 0 20px rgba(0, 255, 255, 0.1);
+        }
+
+        #gameCanvas {
+            display: block;
+            background: #000011;
+        }
+
+        #ui {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: #00ffff;
+            font-size: 16px;
+            text-shadow: 0 0 10px #00ffff;
+            z-index: 10;
+        }
+
+        #ui div {
+            margin-bottom: 5px;
+        }
+
+        #gameOverScreen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 20;
+        }
+
+        #gameOverScreen h1 {
+            color: #ff0055;
+            font-size: 48px;
+            text-shadow: 0 0 20px #ff0055;
+            margin-bottom: 20px;
+        }
+
+        #gameOverScreen p {
+            color: #00ffff;
+            font-size: 20px;
+            margin-bottom: 10px;
+        }
+
+        #restartBtn {
+            margin-top: 30px;
+            padding: 15px 40px;
+            font-size: 20px;
+            font-family: 'Courier New', Courier, monospace;
+            background: transparent;
+            border: 2px solid #00ff00;
+            color: #00ff00;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+        }
+
+        #restartBtn:hover {
+            background: #00ff00;
+            color: #000;
+            box-shadow: 0 0 20px #00ff00;
+        }
+
+        #startScreen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 17, 0.95);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 25;
+        }
+
+        #startScreen h1 {
+            color: #00ffff;
+            font-size: 36px;
+            text-shadow: 0 0 20px #00ffff;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        #startScreen .instructions {
+            color: #aaa;
+            font-size: 14px;
+            margin-bottom: 20px;
+            text-align: center;
+            line-height: 1.8;
+        }
+
+        #startBtn {
+            padding: 15px 40px;
+            font-size: 20px;
+            font-family: 'Courier New', Courier, monospace;
+            background: transparent;
+            border: 2px solid #00ffff;
+            color: #00ffff;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+        }
+
+        #startBtn:hover {
+            background: #00ffff;
+            color: #000;
+            box-shadow: 0 0 20px #00ffff;
+        }
+
+        #levelUpScreen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 15;
+        }
+
+        #levelUpScreen h2 {
+            color: #ffff00;
+            font-size: 42px;
+            text-shadow: 0 0 20px #ffff00;
+            animation: pulse 0.5s ease-in-out infinite alternate;
+        }
+
+        @keyframes pulse {
+            from { transform: scale(1); }
+            to { transform: scale(1.1); }
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+        
+        <div id="ui">
+            <div>PUNTUACIÓN: <span id="score">0</span></div>
+            <div>NIVEL: <span id="level">1</span></div>
+            <div>VIDAS: <span id="lives">3</span></div>
+        </div>
+
+        <div id="startScreen">
+            <h1>🚀 DISPAROS ESPACIALES 🚀</h1>
+            <div class="instructions">
+                ⬆️⬇️⬅️➡️ - Mover nave<br>
+                ESPACIO - Disparar<br><br>
+                ¡Destruye todos los enemigos!<br>
+                Sobrevive los 5 niveles para ganar.
+            </div>
+            <button id="startBtn">INICIAR JUEGO</button>
+        </div>
+
+        <div id="gameOverScreen">
+            <h1>GAME OVER</h1>
+            <p>Puntuación Final: <span id="finalScore">0</span></p>
+            <p>Nivel Alcanzado: <span id="finalLevel">1</span></p>
+            <button id="restartBtn">REINICIAR</button>
+        </div>
+
+        <div id="levelUpScreen">
+            <h2 id="levelUpText">¡NIVEL 2!</h2>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // CLASE: Bala (Bullet)
+        // ==========================================
+        class Bala {
+            constructor(x, y, velocidad = 10, esJugador = true) {
+                this.x = x;
+                this.y = y;
+                this.ancho = 15;
+                this.alto = 4;
+                this.velocidad = velocidad;
+                this.esJugador = esJugador;
+                this.activa = true;
+            }
+
+            actualizar() {
+                if (this.esJugador) {
+                    this.x += this.velocidad;
+                } else {
+                    this.x -= this.velocidad;
+                }
+
+                // Desactivar si sale de la pantalla
+                // Canvas width is 800, so use 800 + 50 margin
+                const canvasWidth = 800;
+                if (this.x > canvasWidth + 50 || this.x < -20) {
+                    this.activa = false;
+                }
+            }
+
+            dibujar(ctx) {
+                if (this.esJugador) {
+                    // Bala del jugador - color cyan
+                    ctx.fillStyle = '#00ffff';
+                    ctx.shadowColor = '#00ffff';
+                    ctx.shadowBlur = 10;
+                } else {
+                    // Bala enemiga - color rojo
+                    ctx.fillStyle = '#ff0055';
+                    ctx.shadowColor = '#ff0055';
+                    ctx.shadowBlur = 10;
+                }
+                
+                ctx.fillRect(this.x, this.y, this.ancho, this.alto);
+                ctx.shadowBlur = 0;
+            }
+
+            obtenerLimites() {
+                return {
+                    x: this.x,
+                    y: this.y,
+                    ancho: this.ancho,
+                    alto: this.alto
+                };
+            }
+        }
+
+        // ==========================================
+        // CLASE: Jugador (Player)
+        // ==========================================
+        class Jugador {
+            constructor(canvas) {
+                this.canvas = canvas;
+                this.ancho = 50;
+                this.alto = 30;
+                this.x = 50;
+                this.y = canvas.height / 2 - this.alto / 2;
+                this.velocidad = 5;
+                this.vidas = 3;
+                this.invulnerable = false;
+                this.tiempoInvulnerable = 0;
+                this.tiempoUltimoDisparo = 0;
+                this.cadenciaDisparo = 200; // ms entre disparos
+                
+                // Control de movimiento
+                this.movimiento = {
+                    arriba: false,
+                    abajo: false,
+                    izquierda: false,
+                    derecha: false
+                };
+            }
+
+            actualizar(deltaTime) {
+                // Movimiento
+                if (this.movimiento.arriba && this.y > 0) {
+                    this.y -= this.velocidad;
+                }
+                if (this.movimiento.abajo && this.y < this.canvas.height - this.alto) {
+                    this.y += this.velocidad;
+                }
+                if (this.movimiento.izquierda && this.x > 0) {
+                    this.x -= this.velocidad;
+                }
+                if (this.movimiento.derecha && this.x < this.canvas.width - this.ancho) {
+                    this.x += this.velocidad;
+                }
+
+                // Actualizar invulnerabilidad
+                if (this.invulnerable) {
+                    this.tiempoInvulnerable -= deltaTime;
+                    if (this.tiempoInvulnerable <= 0) {
+                        this.invulnerable = false;
+                    }
+                }
+            }
+
+            dibujar(ctx) {
+                // Parpadeo cuando es invulnerable
+                if (this.invulnerable && Math.floor(Date.now() / 100) % 2 === 0) {
+                    return;
+                }
+
+                ctx.save();
+                
+                // Cuerpo de la nave
+                ctx.fillStyle = '#00ff88';
+                ctx.shadowColor = '#00ff88';
+                ctx.shadowBlur = 15;
+                
+                // Forma de nave espacial
+                ctx.beginPath();
+                ctx.moveTo(this.x + this.ancho, this.y + this.alto / 2); // Punta
+                ctx.lineTo(this.x, this.y); // Arriba izquierda
+                ctx.lineTo(this.x + 10, this.y + this.alto / 2); // Centro
+                ctx.lineTo(this.x, this.y + this.alto); // Abajo izquierda
+                ctx.closePath();
+                ctx.fill();
+
+                // Motor
+                ctx.fillStyle = '#ff6600';
+                ctx.shadowColor = '#ff6600';
+                ctx.beginPath();
+                ctx.moveTo(this.x + 5, this.y + 8);
+                ctx.lineTo(this.x - 10, this.y + this.alto / 2);
+                ctx.lineTo(this.x + 5, this.y + this.alto - 8);
+                ctx.closePath();
+                ctx.fill();
+
+                ctx.restore();
+            }
+
+            disparar(tiempoActual) {
+                if (tiempoActual - this.tiempoUltimoDisparo >= this.cadenciaDisparo) {
+                    this.tiempoUltimoDisparo = tiempoActual;
+                    return new Bala(this.x + this.ancho, this.y + this.alto / 2 - 2, 12, true);
+                }
+                return null;
+            }
+
+            recibirDano() {
+                if (!this.invulnerable) {
+                    this.vidas--;
+                    this.invulnerable = true;
+                    this.tiempoInvulnerable = 2000; // 2 segundos de invulnerabilidad
+                    return true;
+                }
+                return false;
+            }
+
+            reiniciar() {
+                this.x = 50;
+                this.y = this.canvas.height / 2 - this.alto / 2;
+                this.vidas = 3;
+                this.invulnerable = false;
+                this.movimiento = {
+                    arriba: false,
+                    abajo: false,
+                    izquierda: false,
+                    derecha: false
+                };
+            }
+
+            obtenerLimites() {
+                return {
+                    x: this.x,
+                    y: this.y,
+                    ancho: this.ancho,
+                    alto: this.alto
+                };
+            }
+        }
+
+        // ==========================================
+        // CLASE: Enemigo (Enemy)
+        // ==========================================
+        class Enemigo {
+            constructor(canvas, nivel) {
+                this.canvas = canvas;
+                this.ancho = 40;
+                this.alto = 25;
+                this.x = canvas.width + this.ancho;
+                this.y = Math.random() * (canvas.height - this.alto - 40) + 20;
+                
+                // Velocidad base aumenta con el nivel
+                this.velocidadBase = 2 + (nivel * 0.5);
+                this.velocidad = this.velocidadBase + Math.random() * 1.5;
+                
+                this.puntos = 100 * nivel;
+                this.activo = true;
+                
+                // Movimiento ondulatorio
+                this.amplitud = Math.random() * 30 + 10;
+                this.frecuencia = Math.random() * 0.05 + 0.02;
+                this.fase = Math.random() * Math.PI * 2;
+                this.yInicial = this.y;
+            }
+
+            actualizar() {
+                this.x -= this.velocidad;
+                
+                // Movimiento ondulatorio
+                this.fase += this.frecuencia;
+                this.y = this.yInicial + Math.sin(this.fase) * this.amplitud;
+                
+                // Limitar dentro del canvas
+                if (this.y < 10) this.y = 10;
+                if (this.y > this.canvas.height - this.alto - 10) {
+                    this.y = this.canvas.height - this.alto - 10;
+                }
+
+                // Desactivar si sale por la izquierda
+                if (this.x < -this.ancho) {
+                    this.activo = false;
+                }
+            }
+
+            dibujar(ctx) {
+                ctx.save();
+                
+                // Cuerpo del enemigo
+                ctx.fillStyle = '#ff3366';
+                ctx.shadowColor = '#ff3366';
+                ctx.shadowBlur = 10;
+                
+                // Forma de nave enemiga
+                ctx.beginPath();
+                ctx.moveTo(this.x, this.y + this.alto / 2); // Punta izquierda
+                ctx.lineTo(this.x + this.ancho, this.y); // Arriba derecha
+                ctx.lineTo(this.x + this.ancho - 10, this.y + this.alto / 2); // Centro
+                ctx.lineTo(this.x + this.ancho, this.y + this.alto); // Abajo derecha
+                ctx.closePath();
+                ctx.fill();
+
+                // Ojo/cabina
+                ctx.fillStyle = '#ffff00';
+                ctx.shadowColor = '#ffff00';
+                ctx.beginPath();
+                ctx.arc(this.x + 15, this.y + this.alto / 2, 5, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.restore();
+            }
+
+            obtenerLimites() {
+                return {
+                    x: this.x,
+                    y: this.y,
+                    ancho: this.ancho,
+                    alto: this.alto
+                };
+            }
+        }
+
+        // ==========================================
+        // CLASE: Estrella (para fondo)
+        // ==========================================
+        class Estrella {
+            constructor(canvas) {
+                this.canvas = canvas;
+                this.x = Math.random() * canvas.width;
+                this.y = Math.random() * canvas.height;
+                this.tamano = Math.random() * 2 + 0.5;
+                this.velocidad = Math.random() * 3 + 1;
+                this.brillo = Math.random();
+            }
+
+            actualizar() {
+                this.x -= this.velocidad;
+                if (this.x < 0) {
+                    this.x = this.canvas.width;
+                    this.y = Math.random() * this.canvas.height;
+                }
+            }
+
+            dibujar(ctx) {
+                ctx.fillStyle = `rgba(255, 255, 255, ${0.3 + this.brillo * 0.7})`;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.tamano, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        // ==========================================
+        // CLASE: GameManager
+        // ==========================================
+        class GameManager {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                
+                // Elementos UI
+                this.scoreElement = document.getElementById('score');
+                this.levelElement = document.getElementById('level');
+                this.livesElement = document.getElementById('lives');
+                this.startScreen = document.getElementById('startScreen');
+                this.gameOverScreen = document.getElementById('gameOverScreen');
+                this.levelUpScreen = document.getElementById('levelUpScreen');
+                this.finalScoreElement = document.getElementById('finalScore');
+                this.finalLevelElement = document.getElementById('finalLevel');
+                this.levelUpText = document.getElementById('levelUpText');
+                
+                // Estado del juego
+                this.jugador = null;
+                this.enemigos = [];
+                this.balas = [];
+                this.estrellas = [];
+                this.puntuacion = 0;
+                this.nivel = 1;
+                this.nivelMaximo = 5;
+                this.enJuego = false;
+                this.pausado = false;
+                
+                // Temporizadores
+                this.ultimoTiempo = 0;
+                this.tiempoSpawnEnemigo = 0;
+                this.intervaloSpawnBase = 2000; // ms
+                this.enemigosDestruidos = 0;
+                this.enemigosPorNivel = 10;
+                
+                // Control de disparo
+                this.disparando = false;
+                
+                // Inicializar
+                this.inicializarEstrellas();
+                this.configurarEventos();
+            }
+
+            inicializarEstrellas() {
+                this.estrellas = [];
+                for (let i = 0; i < 100; i++) {
+                    this.estrellas.push(new Estrella(this.canvas));
+                }
+            }
+
+            configurarEventos() {
+                // Botones
+                document.getElementById('startBtn').addEventListener('click', () => this.iniciarJuego());
+                document.getElementById('restartBtn').addEventListener('click', () => this.reiniciarJuego());
+
+                // Teclado
+                document.addEventListener('keydown', (e) => this.manejarTeclaPresionada(e));
+                document.addEventListener('keyup', (e) => this.manejarTeclaSoltada(e));
+            }
+
+            manejarTeclaPresionada(e) {
+                if (!this.jugador || !this.enJuego) return;
+
+                switch(e.code) {
+                    case 'ArrowUp':
+                    case 'KeyW':
+                        this.jugador.movimiento.arriba = true;
+                        e.preventDefault();
+                        break;
+                    case 'ArrowDown':
+                    case 'KeyS':
+                        this.jugador.movimiento.abajo = true;
+                        e.preventDefault();
+                        break;
+                    case 'ArrowLeft':
+                    case 'KeyA':
+                        this.jugador.movimiento.izquierda = true;
+                        e.preventDefault();
+                        break;
+                    case 'ArrowRight':
+                    case 'KeyD':
+                        this.jugador.movimiento.derecha = true;
+                        e.preventDefault();
+                        break;
+                    case 'Space':
+                        this.disparando = true;
+                        e.preventDefault();
+                        break;
+                }
+            }
+
+            manejarTeclaSoltada(e) {
+                if (!this.jugador) return;
+
+                switch(e.code) {
+                    case 'ArrowUp':
+                    case 'KeyW':
+                        this.jugador.movimiento.arriba = false;
+                        break;
+                    case 'ArrowDown':
+                    case 'KeyS':
+                        this.jugador.movimiento.abajo = false;
+                        break;
+                    case 'ArrowLeft':
+                    case 'KeyA':
+                        this.jugador.movimiento.izquierda = false;
+                        break;
+                    case 'ArrowRight':
+                    case 'KeyD':
+                        this.jugador.movimiento.derecha = false;
+                        break;
+                    case 'Space':
+                        this.disparando = false;
+                        break;
+                }
+            }
+
+            iniciarJuego() {
+                this.startScreen.style.display = 'none';
+                this.gameOverScreen.style.display = 'none';
+                
+                this.jugador = new Jugador(this.canvas);
+                this.enemigos = [];
+                this.balas = [];
+                this.puntuacion = 0;
+                this.nivel = 1;
+                this.enemigosDestruidos = 0;
+                this.enJuego = true;
+                this.disparando = false;
+                
+                this.actualizarUI();
+                this.ultimoTiempo = performance.now();
+                this.tiempoSpawnEnemigo = this.ultimoTiempo;
+                
+                // Game loop is already running from DOMContentLoaded, no need to start again
+            }
+
+            reiniciarJuego() {
+                this.iniciarJuego();
+            }
+
+            obtenerIntervaloSpawn() {
+                // Reducir intervalo de spawn con cada nivel
+                return Math.max(500, this.intervaloSpawnBase - (this.nivel - 1) * 300);
+            }
+
+            spawnEnemigo() {
+                const enemigo = new Enemigo(this.canvas, this.nivel);
+                this.enemigos.push(enemigo);
+            }
+
+            detectarColision(a, b) {
+                const limA = a.obtenerLimites();
+                const limB = b.obtenerLimites();
+                
+                return limA.x < limB.x + limB.ancho &&
+                       limA.x + limA.ancho > limB.x &&
+                       limA.y < limB.y + limB.alto &&
+                       limA.y + limA.alto > limB.y;
+            }
+
+            procesarColisiones() {
+                // Balas del jugador vs Enemigos
+                for (let i = this.balas.length - 1; i >= 0; i--) {
+                    const bala = this.balas[i];
+                    if (!bala.esJugador || !bala.activa) continue;
+
+                    for (let j = this.enemigos.length - 1; j >= 0; j--) {
+                        const enemigo = this.enemigos[j];
+                        if (!enemigo.activo) continue;
+
+                        if (this.detectarColision(bala, enemigo)) {
+                            bala.activa = false;
+                            enemigo.activo = false;
+                            this.puntuacion += enemigo.puntos;
+                            this.enemigosDestruidos++;
+                            
+                            // Verificar subida de nivel
+                            if (this.enemigosDestruidos >= this.enemigosPorNivel) {
+                                this.subirNivel();
+                            }
+                            break;
+                        }
+                    }
+                }
+
+                // Enemigos vs Jugador
+                for (const enemigo of this.enemigos) {
+                    if (!enemigo.activo) continue;
+                    
+                    if (this.detectarColision(this.jugador, enemigo)) {
+                        if (this.jugador.recibirDano()) {
+                            enemigo.activo = false;
+                            if (this.jugador.vidas <= 0) {
+                                this.gameOver();
+                                return;
+                            }
+                        }
+                    }
+                }
+            }
+
+            subirNivel() {
+                if (this.nivel >= this.nivelMaximo) {
+                    // Victoria!
+                    this.mostrarVictoria();
+                    return;
+                }
+
+                this.nivel++;
+                this.enemigosDestruidos = 0;
+                
+                // Mostrar pantalla de nivel
+                this.levelUpText.textContent = `¡NIVEL ${this.nivel}!`;
+                this.levelUpScreen.style.display = 'flex';
+                
+                setTimeout(() => {
+                    this.levelUpScreen.style.display = 'none';
+                }, 1500);
+            }
+
+            mostrarVictoria() {
+                this.enJuego = false;
+                this.gameOverScreen.querySelector('h1').textContent = '¡VICTORIA!';
+                this.gameOverScreen.querySelector('h1').style.color = '#00ff00';
+                this.finalScoreElement.textContent = this.puntuacion;
+                this.finalLevelElement.textContent = this.nivel;
+                this.gameOverScreen.style.display = 'flex';
+            }
+
+            gameOver() {
+                this.enJuego = false;
+                this.gameOverScreen.querySelector('h1').textContent = 'GAME OVER';
+                this.gameOverScreen.querySelector('h1').style.color = '#ff0055';
+                this.finalScoreElement.textContent = this.puntuacion;
+                this.finalLevelElement.textContent = this.nivel;
+                this.gameOverScreen.style.display = 'flex';
+            }
+
+            actualizarUI() {
+                this.scoreElement.textContent = this.puntuacion;
+                this.levelElement.textContent = this.nivel;
+                this.livesElement.textContent = this.jugador ? this.jugador.vidas : 0;
+            }
+
+            actualizar(tiempoActual) {
+                const deltaTime = tiempoActual - this.ultimoTiempo;
+                this.ultimoTiempo = tiempoActual;
+
+                // Actualizar estrellas
+                for (const estrella of this.estrellas) {
+                    estrella.actualizar();
+                }
+
+                if (!this.enJuego) return;
+
+                // Spawn de enemigos
+                if (tiempoActual - this.tiempoSpawnEnemigo >= this.obtenerIntervaloSpawn()) {
+                    this.spawnEnemigo();
+                    this.tiempoSpawnEnemigo = tiempoActual;
+                }
+
+                // Disparar
+                if (this.disparando) {
+                    const bala = this.jugador.disparar(tiempoActual);
+                    if (bala) {
+                        this.balas.push(bala);
+                    }
+                }
+
+                // Actualizar jugador
+                this.jugador.actualizar(deltaTime);
+
+                // Actualizar enemigos
+                for (const enemigo of this.enemigos) {
+                    enemigo.actualizar();
+                }
+
+                // Actualizar balas
+                for (const bala of this.balas) {
+                    bala.actualizar();
+                }
+
+                // Detectar colisiones
+                this.procesarColisiones();
+
+                // Limpiar objetos inactivos
+                this.enemigos = this.enemigos.filter(e => e.activo);
+                this.balas = this.balas.filter(b => b.activa);
+
+                // Actualizar UI
+                this.actualizarUI();
+            }
+
+            dibujar() {
+                // Limpiar canvas
+                this.ctx.fillStyle = '#000011';
+                this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+                // Dibujar estrellas
+                for (const estrella of this.estrellas) {
+                    estrella.dibujar(this.ctx);
+                }
+
+                if (!this.enJuego && !this.jugador) return;
+
+                // Dibujar balas
+                for (const bala of this.balas) {
+                    bala.dibujar(this.ctx);
+                }
+
+                // Dibujar enemigos
+                for (const enemigo of this.enemigos) {
+                    enemigo.dibujar(this.ctx);
+                }
+
+                // Dibujar jugador
+                if (this.jugador) {
+                    this.jugador.dibujar(this.ctx);
+                }
+
+                // Indicador de progreso del nivel
+                if (this.enJuego) {
+                    this.dibujarBarraProgreso();
+                }
+            }
+
+            dibujarBarraProgreso() {
+                const barraAncho = 150;
+                const barraAlto = 10;
+                const x = this.canvas.width - barraAncho - 20;
+                const y = 15;
+                const progreso = this.enemigosDestruidos / this.enemigosPorNivel;
+
+                // Fondo
+                this.ctx.fillStyle = '#333';
+                this.ctx.fillRect(x, y, barraAncho, barraAlto);
+
+                // Progreso
+                this.ctx.fillStyle = '#00ff00';
+                this.ctx.fillRect(x, y, barraAncho * progreso, barraAlto);
+
+                // Borde
+                this.ctx.strokeStyle = '#00ff00';
+                this.ctx.strokeRect(x, y, barraAncho, barraAlto);
+
+                // Texto
+                this.ctx.fillStyle = '#fff';
+                this.ctx.font = '10px Courier New';
+                this.ctx.fillText(`${this.enemigosDestruidos}/${this.enemigosPorNivel}`, x + barraAncho + 5, y + 9);
+            }
+
+            gameLoop(tiempoActual) {
+                this.actualizar(tiempoActual);
+                this.dibujar();
+
+                // Always continue the game loop - it handles both active game and background animation
+                requestAnimationFrame((t) => this.gameLoop(t));
+            }
+        }
+
+        // ==========================================
+        // INICIALIZACIÓN
+        // ==========================================
+        document.addEventListener('DOMContentLoaded', () => {
+            const game = new GameManager();
+            // Iniciar animación del fondo antes de empezar
+            game.gameLoop(performance.now());
+        });
+    </script>
+</body>
+</html>
